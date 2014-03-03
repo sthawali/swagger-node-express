@@ -1,15 +1,15 @@
 // ### Swagger Sample Application
-// 
+//
 // This is a sample application which uses the [swagger-node-express](https://github.com/wordnik/swagger-node-express)
 // module.  The application is organized in the following manner:
 //
 // #### petResources.js
-// 
+//
 // All API methods for this petstore implementation live in this file and are added to the swagger middleware.
 //
 // #### models.js
 //
-// This contains all model definitions which are sent & received from the API methods. 
+// This contains all model definitions which are sent & received from the API methods.
 //
 // #### petData.js
 //
@@ -58,7 +58,7 @@ swagger.addValidator(
       if (!apiKey) {
         apiKey = url.parse(req.url,true).query["api_key"]; }
       if ("special-key" == apiKey) {
-        return true; 
+        return true;
       }
       return false;
     }

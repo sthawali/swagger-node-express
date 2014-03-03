@@ -152,7 +152,7 @@ function filterApiListing(req, res, r) {
   //  clone attributes in the resource
   var output = shallowClone(r);
 
-  // clone arrays for 
+  // clone arrays for
   if(r["produces"]) output.produces = r["produces"].slice(0);
   if(r["consumes"]) output.consumes = r["consumes"].slice(0);
   if(r["authorizations"]) output.authorizations = r["authorizations"].slice(0);
@@ -328,11 +328,40 @@ function resourceListing(req, res) {
   res.end();
 }
 
+
+function accessControl(req, res, next) {
+  exports.setHeaders(res);
+
+  // todo: needs to do smarter matching against the defined paths
+  var path = req.url.split('?')[0].replace(jsonSuffix, "").replace(/{.*\}/, "*");
+  if (!canAccessResource(req, path, req.method)) {
+    res.send(JSON.stringify({
+      "message": "forbidden",
+      "code": 403
+    }), 403);
+  } else {
+    try {
+      next();
+    } catch (error) {
+      if (typeof errorHandler === "function") {
+        errorHandler(req, res, error);
+      } else if (errorHandler === "next") {
+        next(error);
+      } else {
+        throw error;
+      }
+    }
+  }
+}
+
+
 // Adds a method to the api along with a spec.  If the spec fails to validate, it won't be added
 
 function addMethod(app, callback, spec) {
   var apiRootPath = spec.path.split(/[\/\(]/)[1];
   var root = resources[apiRootPath];
+  callbacks = _.isArray(callback) ? callback : [callback];
+  callbacks.unshift(accessControl);
 
   if (root && root.apis) {
     // this path already exists in swagger resources
@@ -350,7 +379,7 @@ function addMethod(app, callback, spec) {
   };
   if (!resources[apiRootPath]) {
     if (!root) {
-      // 
+      //
       var resourcePath = "/" + apiRootPath.replace(formatString, "");
       root = {
         "apiVersion": apiVersion,
@@ -371,30 +400,7 @@ function addMethod(app, callback, spec) {
   var fullPath = spec.path.replace(formatString, jsonSuffix).replace(/\/{/g, "/:").replace(/\}/g, "");
   var currentMethod = spec.method.toLowerCase();
   if (allowedMethods.indexOf(currentMethod) > -1) {
-    app[currentMethod](fullPath, function (req, res, next) {
-      exports.setHeaders(res);
-
-      // todo: needs to do smarter matching against the defined paths
-      var path = req.url.split('?')[0].replace(jsonSuffix, "").replace(/{.*\}/, "*");
-      if (!canAccessResource(req, path, req.method)) {
-        res.send(JSON.stringify({
-          "message": "forbidden",
-          "code": 403
-        }), 403);
-      } else {
-        try {
-          callback(req, res, next);
-        } catch (error) {
-          if (typeof errorHandler === "function") {
-            errorHandler(req, res, error);
-          } else if (errorHandler === "next") {
-            next(error);
-          } else {
-            throw error;
-          }
-        }
-      }
-    });
+    app[currentMethod](fullPath, callbacks);
   } else {
     console.error('unable to add ' + currentMethod.toUpperCase() + ' handler');
     return;
@@ -414,7 +420,7 @@ function setErrorHandler(handler) {
   errorHandler = handler;
 }
 
-// Add swagger handlers to express 
+// Add swagger handlers to express
 
 function addHandlers(type, handlers) {
   _.forOwn(handlers, function (handler) {
@@ -642,6 +648,19 @@ exports.errors = {
       res.send({
         "code": 403,
         "message": 'forbidden'
+      }, 403);
+    },
+  'default' : function (message, res) {
+    if(!message) message = 'unknown error';
+    if (!res) {
+      return {
+        "code": 403,
+        "message": message
+      };
+    } else {
+      res.send({
+        "code": 403,
+        "message": message
       }, 403);
     }
   }
